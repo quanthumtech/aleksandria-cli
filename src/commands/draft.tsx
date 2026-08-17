@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Box, render, Text } from 'ink';
+import { Box, render, Text, useStdout } from 'ink';
 import TextInput from 'ink-text-input';
 import { useState } from 'react';
 import { createPrompt, resolveProject } from '../api.js';
@@ -11,6 +11,42 @@ import { buildEditorTemplate } from '../draft-template.js';
 import { locateProjectDir } from '../project-locate.js';
 import { rememberProjectPath } from '../project-cache.js';
 import { scanProject, type ProjectContext } from '../scan.js';
+
+// ANSI Shadow — 119 colunas. Só cabe em terminais bem largos, então tem um fallback abaixo pra
+// quando a janela é mais estreita que isso (não dá pra fazer "scroll lateral" num terminal real).
+const BIG_SIGNATURE = [
+  '█████╗ ██╗     ███████╗██╗  ██╗███████╗ █████╗ ███╗   ██╗██████╗ ██████╗ ██╗ █████╗                ██████╗██╗     ██╗',
+  '██╔══██╗██║     ██╔════╝██║ ██╔╝██╔════╝██╔══██╗████╗  ██║██╔══██╗██╔══██╗██║██╔══██╗              ██╔════╝██║     ██║',
+  '███████║██║     █████╗  █████╔╝ ███████╗███████║██╔██╗ ██║██║  ██║██████╔╝██║███████║    █████╗    ██║     ██║     ██║',
+  '██╔══██║██║     ██╔══╝  ██╔═██╗ ╚════██║██╔══██║██║╚██╗██║██║  ██║██╔══██╗██║██╔══██║    ╚════╝    ██║     ██║     ██║',
+  '██║  ██║███████╗███████╗██║  ██╗███████║██║  ██║██║ ╚████║██████╔╝██║  ██║██║██║  ██║              ╚██████╗███████╗██║',
+  '╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝               ╚═════╝╚══════╝╚═╝',
+];
+const BIG_SIGNATURE_WIDTH = Math.max(...BIG_SIGNATURE.map((line) => line.length));
+
+function Signature() {
+  const { stdout } = useStdout();
+  // +4 pra sobrar espaço pra borda/padding do Box em volta.
+  const fitsBigSignature = stdout.columns >= BIG_SIGNATURE_WIDTH + 4;
+
+  if (!fitsBigSignature) {
+    return (
+      <Text bold color="magenta">
+        aleksandria
+      </Text>
+    );
+  }
+
+  return (
+    <Box flexDirection="column">
+      {BIG_SIGNATURE.map((line, i) => (
+        <Text key={i} color="magenta">
+          {line}
+        </Text>
+      ))}
+    </Box>
+  );
+}
 
 function ScanSummary({ context }: { context: ProjectContext }) {
   const found = [
@@ -27,9 +63,7 @@ function ScanSummary({ context }: { context: ProjectContext }) {
       paddingX={1}
       marginBottom={1}
     >
-      <Text bold color="magenta">
-        aleksandria
-      </Text>
+      <Signature />
       <Text color="gray">escaneando {path.basename(context.path)}…</Text>
       <Text color="gray">
         {found.length > 0 ? found.join(' · ') : 'nenhum CLAUDE.md/README/git log encontrado'}

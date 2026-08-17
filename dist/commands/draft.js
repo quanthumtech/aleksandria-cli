@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Box, render, Text } from 'ink';
+import { Box, render, Text, useStdout } from 'ink';
 import TextInput from 'ink-text-input';
 import { useState } from 'react';
 import { createPrompt, resolveProject } from '../api.js';
@@ -12,13 +12,33 @@ import { buildEditorTemplate } from '../draft-template.js';
 import { locateProjectDir } from '../project-locate.js';
 import { rememberProjectPath } from '../project-cache.js';
 import { scanProject } from '../scan.js';
+// ANSI Shadow — 119 colunas. Só cabe em terminais bem largos, então tem um fallback abaixo pra
+// quando a janela é mais estreita que isso (não dá pra fazer "scroll lateral" num terminal real).
+const BIG_SIGNATURE = [
+    '█████╗ ██╗     ███████╗██╗  ██╗███████╗ █████╗ ███╗   ██╗██████╗ ██████╗ ██╗ █████╗                ██████╗██╗     ██╗',
+    '██╔══██╗██║     ██╔════╝██║ ██╔╝██╔════╝██╔══██╗████╗  ██║██╔══██╗██╔══██╗██║██╔══██╗              ██╔════╝██║     ██║',
+    '███████║██║     █████╗  █████╔╝ ███████╗███████║██╔██╗ ██║██║  ██║██████╔╝██║███████║    █████╗    ██║     ██║     ██║',
+    '██╔══██║██║     ██╔══╝  ██╔═██╗ ╚════██║██╔══██║██║╚██╗██║██║  ██║██╔══██╗██║██╔══██║    ╚════╝    ██║     ██║     ██║',
+    '██║  ██║███████╗███████╗██║  ██╗███████║██║  ██║██║ ╚████║██████╔╝██║  ██║██║██║  ██║              ╚██████╗███████╗██║',
+    '╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝               ╚═════╝╚══════╝╚═╝',
+];
+const BIG_SIGNATURE_WIDTH = Math.max(...BIG_SIGNATURE.map((line) => line.length));
+function Signature() {
+    const { stdout } = useStdout();
+    // +4 pra sobrar espaço pra borda/padding do Box em volta.
+    const fitsBigSignature = stdout.columns >= BIG_SIGNATURE_WIDTH + 4;
+    if (!fitsBigSignature) {
+        return (_jsx(Text, { bold: true, color: "magenta", children: "aleksandria" }));
+    }
+    return (_jsx(Box, { flexDirection: "column", children: BIG_SIGNATURE.map((line, i) => (_jsx(Text, { color: "magenta", children: line }, i))) }));
+}
 function ScanSummary({ context }) {
     const found = [
         context.claudeMd && 'CLAUDE.md',
         context.readme && 'README.md',
         context.recentCommits.length > 0 && 'git log -10',
     ].filter(Boolean);
-    return (_jsxs(Box, { flexDirection: "column", borderStyle: "round", borderColor: "magenta", paddingX: 1, marginBottom: 1, children: [_jsx(Text, { bold: true, color: "magenta", children: "aleksandria" }), _jsxs(Text, { color: "gray", children: ["escaneando ", path.basename(context.path), "\u2026"] }), _jsx(Text, { color: "gray", children: found.length > 0 ? found.join(' · ') : 'nenhum CLAUDE.md/README/git log encontrado' }), context.remote && (_jsxs(Text, { color: "gray", children: ["remote \u2192 ", context.remote.owner, "/", context.remote.repo] }))] }));
+    return (_jsxs(Box, { flexDirection: "column", borderStyle: "round", borderColor: "magenta", paddingX: 1, marginBottom: 1, children: [_jsx(Signature, {}), _jsxs(Text, { color: "gray", children: ["escaneando ", path.basename(context.path), "\u2026"] }), _jsx(Text, { color: "gray", children: found.length > 0 ? found.join(' · ') : 'nenhum CLAUDE.md/README/git log encontrado' }), context.remote && (_jsxs(Text, { color: "gray", children: ["remote \u2192 ", context.remote.owner, "/", context.remote.repo] }))] }));
 }
 export function DraftScreen({ context, onSubmit, }) {
     const [value, setValue] = useState('');
