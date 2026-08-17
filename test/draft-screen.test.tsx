@@ -50,7 +50,9 @@ describe('DraftFlow', () => {
     );
 
     const frame = lastFrame();
-    expect(frame).toContain('aleksandria');
+    // Com a assinatura mais estreita (só "ALEKSANDRIA"), a largura padrão do terminal de teste
+    // já comporta a arte ANSI Shadow completa, então o fallback em texto puro não entra em jogo.
+    expect(frame).toContain('█████╗');
     expect(frame).toContain('CLAUDE.md');
     expect(frame).toContain('quanthumtech/docs-hub');
     expect(frame).toContain('título do prompt');

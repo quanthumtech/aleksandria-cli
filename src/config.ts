@@ -5,6 +5,7 @@ import path from 'node:path';
 export interface Config {
   url?: string;
   token?: string;
+  agent?: string;
 }
 
 export interface Credentials {

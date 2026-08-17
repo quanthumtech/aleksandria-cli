@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import { AGENTS } from './agents.js';
 import { runConfigSet } from './commands/config.js';
 import { runDraft } from './commands/draft.js';
 import { runList } from './commands/list.js';
@@ -39,9 +40,13 @@ program
 
 program
   .command('run <id>')
-  .description('Executa um prompt salvo com o claude, na pasta local do projeto')
+  .description('Executa um prompt salvo com o agente escolhido, na pasta local do projeto')
   .option('--path <dir>', 'caminho local do projeto (se não estiver em cache)')
-  .action(async (id: string, opts: { path?: string }) => {
+  .option(
+    '--agent <nome>',
+    `agente pra rodar o prompt (${AGENTS.map((a) => a.id).join('|')}) — pula a lista interativa`,
+  )
+  .action(async (id: string, opts: { path?: string; agent?: string }) => {
     await guard(() => runRun(parseInt(id, 10), opts));
   });
 
