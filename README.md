@@ -4,16 +4,26 @@ CLI da Aleksandria: escreve prompts com o contexto real de cada projeto local
 (`CLAUDE.md`, README, git log) e guarda tudo na Aleksandria, pronto pra
 executar depois com o `claude`.
 
-Não publicado no npm — uso local via `npm link`, no mesmo espírito do
-`quanthum-cli`.
+Não publicado no npm. `npm install -g git+https://...` quebra nesta versão
+do npm (10.8.2) — o passo final de instalação global de uma dependência git
+faz um `rename()` de um symlink que aponta pro cache temporário do npm,
+o que falha com `ENOTDIR` (reproduzido de forma consistente, inclusive com
+cache limpo e commit fixado — não é um problema de cache). `npx
+github:...` funciona, mas exige repetir o prefixo (ou um alias) toda vez.
 
 ## Instalação
 
+Um comando só — clona pra uma pasta fixa e deixa o `aleksandria` pronto:
+
 ```bash
-cd aleksandria-cli
-npm install
-npm run build
-npm link        # expõe o comando `aleksandria` globalmente
+git clone https://github.com/quanthumtech/aleksandria-cli.git ~/.aleksandria-cli \
+  && cd ~/.aleksandria-cli && npm install && npm run build && npm link
+```
+
+Pra atualizar depois:
+
+```bash
+cd ~/.aleksandria-cli && git pull && npm install && npm run build
 ```
 
 ## Configuração
