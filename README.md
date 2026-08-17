@@ -8,22 +8,20 @@ Não publicado no npm. `npm install -g git+https://...` quebra nesta versão
 do npm (10.8.2) — o passo final de instalação global de uma dependência git
 faz um `rename()` de um symlink que aponta pro cache temporário do npm,
 o que falha com `ENOTDIR` (reproduzido de forma consistente, inclusive com
-cache limpo e commit fixado — não é um problema de cache). `npx
-github:...` funciona, mas exige repetir o prefixo (ou um alias) toda vez.
+cache limpo e commit fixado — não é um problema de cache). Por isso o
+instalador é um script próprio (`install.sh`), não `npm install -g`.
 
 ## Instalação
 
-Um comando só — clona pra uma pasta fixa e deixa o `aleksandria` pronto:
-
 ```bash
-git clone https://github.com/quanthumtech/aleksandria-cli.git ~/.aleksandria-cli \
-  && cd ~/.aleksandria-cli && npm install && npm run build && npm link
+curl -fsSL https://raw.githubusercontent.com/quanthumtech/aleksandria-cli/master/install.sh | bash
 ```
 
-Pra atualizar depois:
+Clona em `~/.aleksandria-cli`, builda e faz `npm link` — deixa o comando
+`aleksandria` pronto no terminal. Pra atualizar depois:
 
 ```bash
-cd ~/.aleksandria-cli && git pull && npm install && npm run build
+aleksandria update
 ```
 
 ## Configuração

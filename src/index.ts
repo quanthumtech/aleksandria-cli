@@ -4,6 +4,7 @@ import { runConfigSet } from './commands/config.js';
 import { runDraft } from './commands/draft.js';
 import { runList } from './commands/list.js';
 import { runRun } from './commands/run.js';
+import { runUninstall } from './commands/uninstall.js';
 import { runUpdate } from './commands/update.js';
 import type { PromptStatus } from './api.js';
 
@@ -50,6 +51,19 @@ program
   .action(() => {
     try {
       runUpdate();
+    } catch (err) {
+      console.error(`\n✖ ${(err as Error).message}`);
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command('uninstall')
+  .description('Remove o aleksandria-cli (~/.aleksandria-cli e o link global)')
+  .option('--purge-config', 'também remove ~/.config/aleksandria (url/token salvos)')
+  .action((opts: { purgeConfig?: boolean }) => {
+    try {
+      runUninstall(opts);
     } catch (err) {
       console.error(`\n✖ ${(err as Error).message}`);
       process.exitCode = 1;

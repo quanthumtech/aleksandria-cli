@@ -4,6 +4,7 @@ import { runConfigSet } from './commands/config.js';
 import { runDraft } from './commands/draft.js';
 import { runList } from './commands/list.js';
 import { runRun } from './commands/run.js';
+import { runUninstall } from './commands/uninstall.js';
 import { runUpdate } from './commands/update.js';
 const program = new Command();
 program.name('aleksandria').description('CLI da Aleksandria — prompts com contexto de projeto').version('0.1.0');
@@ -43,6 +44,19 @@ program
     .action(() => {
     try {
         runUpdate();
+    }
+    catch (err) {
+        console.error(`\n✖ ${err.message}`);
+        process.exitCode = 1;
+    }
+});
+program
+    .command('uninstall')
+    .description('Remove o aleksandria-cli (~/.aleksandria-cli e o link global)')
+    .option('--purge-config', 'também remove ~/.config/aleksandria (url/token salvos)')
+    .action((opts) => {
+    try {
+        runUninstall(opts);
     }
     catch (err) {
         console.error(`\n✖ ${err.message}`);
