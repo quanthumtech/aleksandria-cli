@@ -1,13 +1,11 @@
-import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { Box, render, Text, useStdout } from 'ink';
+import { Box, render, Text, useApp, useInput, useStdout } from 'ink';
+import Spinner from 'ink-spinner';
 import TextInput from 'ink-text-input';
-import { useState } from 'react';
-import { createPrompt, resolveProject } from '../api.js';
+import { useEffect, useState } from 'react';
+import { createPrompt, resolveProject, type Prompt } from '../api.js';
+import type { Credentials } from '../config.js';
 import { getCredentials } from '../config.js';
-import { buildEditorTemplate } from '../draft-template.js';
 import { locateProjectDir } from '../project-locate.js';
 import { rememberProjectPath } from '../project-cache.js';
 import { scanProject, type ProjectContext } from '../scan.js';
@@ -77,18 +75,11 @@ function ScanSummary({ context }: { context: ProjectContext }) {
   );
 }
 
-export function DraftScreen({
-  context,
-  onSubmit,
-}: {
-  context: ProjectContext;
-  onSubmit: (title: string) => void;
-}) {
+export function TitleStep({ onSubmit }: { onSubmit: (title: string) => void }) {
   const [value, setValue] = useState('');
 
   return (
     <Box flexDirection="column">
-      <ScanSummary context={context} />
       <Text color="gray"># título do prompt</Text>
       <Box>
         <Text color="magenta">{'> '}</Text>
@@ -102,89 +93,202 @@ export function DraftScreen({
           }}
         />
       </Box>
-      <Text color="gray">a descrição da feature (pode ter várias linhas) é escrita no editor, no próximo passo.</Text>
     </Box>
   );
 }
 
-function askTitle(context: ProjectContext): Promise<string> {
-  return new Promise((resolve) => {
-    const { unmount } = render(
-      <DraftScreen
-        context={context}
-        onSubmit={(title) => {
-          unmount();
-          resolve(title);
-        }}
-      />,
-    );
+/**
+ * Campo de várias linhas: Enter quebra linha (permite parágrafos), Ctrl+D finaliza — não usa
+ * "enter duas vezes" pra não impedir linha em branco de propósito no meio da descrição.
+ */
+export function DescriptionStep({ onFinish }: { onFinish: (text: string) => void }) {
+  const [lines, setLines] = useState<string[]>(['']);
+
+  useInput((input, key) => {
+    if (key.ctrl && input === 'd') {
+      onFinish(lines.join('\n').trimEnd());
+      return;
+    }
+
+    setLines((prev) => {
+      const lastIndex = prev.length - 1;
+      const current = prev[lastIndex];
+
+      if (key.return) {
+        return [...prev, ''];
+      }
+      if (key.backspace || key.delete) {
+        if (current.length > 0) {
+          return [...prev.slice(0, lastIndex), current.slice(0, -1)];
+        }
+        return prev.length > 1 ? prev.slice(0, -1) : prev;
+      }
+      if (key.ctrl || key.meta || !input) {
+        return prev;
+      }
+      return [...prev.slice(0, lastIndex), current + input];
+    });
   });
+
+  return (
+    <Box flexDirection="column">
+      <Text color="gray"># descrição da feature (Ctrl+D quando terminar)</Text>
+      {lines.map((line, i) => (
+        <Text key={i}>
+          <Text color="magenta">{i === 0 ? '> ' : '  '}</Text>
+          {line}
+          {i === lines.length - 1 && (
+            <Text inverse> </Text>
+          )}
+        </Text>
+      ))}
+    </Box>
+  );
 }
 
-/** Abre $EDITOR (ou $VISUAL, ou nano) num arquivo temporário pré-preenchido e devolve o conteúdo salvo. */
-function editInEditor(initialContent: string): string {
-  const editor = process.env.EDITOR || process.env.VISUAL || 'nano';
-  const tmpFile = path.join(os.tmpdir(), `aleksandria-draft-${Date.now()}.md`);
-  fs.writeFileSync(tmpFile, initialContent, 'utf-8');
+function PromptPreview({ title, description }: { title: string; description: string }) {
+  return (
+    <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1} marginY={1}>
+      <Text bold>{title}</Text>
+      <Text color="gray">{description || '(sem descrição)'}</Text>
+    </Box>
+  );
+}
 
-  // O <TextInput> do Ink desliga o raw mode do stdin dentro de um useEffect de cleanup, que o
-  // React só roda de forma assíncrona depois do unmount() — sem isso, o editor pode herdar o
-  // stdin ainda em raw mode e ler a tecla errada como comando assim que abre.
-  if (process.stdin.isTTY) {
-    process.stdin.setRawMode(false);
-  }
+type Step = 'title' | 'description' | 'confirm' | 'saving' | 'done' | 'cancelled' | 'error';
 
-  const result = spawnSync(editor, [tmpFile], { stdio: 'inherit' });
-  if (result.error) {
-    fs.rmSync(tmpFile, { force: true });
-    throw new Error(`Não consegui abrir o editor "${editor}": ${result.error.message}`);
-  }
+interface SaveResult {
+  prompt: Prompt;
+  projectLinked: boolean;
+}
 
-  const edited = fs.readFileSync(tmpFile, 'utf-8');
-  fs.rmSync(tmpFile, { force: true });
-  return edited;
+export function DraftFlow({
+  context,
+  onSave,
+}: {
+  context: ProjectContext;
+  onSave: (title: string, description: string) => Promise<SaveResult>;
+}) {
+  const [step, setStep] = useState<Step>('title');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [result, setResult] = useState<SaveResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { exit } = useApp();
+
+  useEffect(() => {
+    if (step !== 'saving') {
+      return;
+    }
+    onSave(title, description)
+      .then((saved) => {
+        setResult(saved);
+        setStep('done');
+      })
+      .catch((err: unknown) => {
+        setError((err as Error).message);
+        setStep('error');
+      });
+  }, [step, title, description, onSave]);
+
+  useEffect(() => {
+    if (step === 'done' || step === 'cancelled' || step === 'error') {
+      exit();
+    }
+  }, [step, exit]);
+
+  useInput((input, key) => {
+    if (step !== 'confirm') {
+      return;
+    }
+    if (key.return || input.toLowerCase() === 'y') {
+      setStep('saving');
+    } else if (key.escape || input.toLowerCase() === 'n') {
+      setStep('cancelled');
+    }
+  });
+
+  return (
+    <Box flexDirection="column">
+      <ScanSummary context={context} />
+
+      {step === 'title' && (
+        <TitleStep
+          onSubmit={(value) => {
+            setTitle(value);
+            setStep('description');
+          }}
+        />
+      )}
+
+      {step === 'description' && (
+        <DescriptionStep
+          onFinish={(text) => {
+            setDescription(text);
+            setStep('confirm');
+          }}
+        />
+      )}
+
+      {(step === 'confirm' || step === 'saving' || step === 'done' || step === 'error') && (
+        <>
+          <PromptPreview title={title} description={description} />
+          {step === 'confirm' && <Text color="yellow">Salvar esse prompt? [Y/n]</Text>}
+          {step === 'saving' && (
+            <Text color="magenta">
+              <Spinner type="dots" /> salvando...
+            </Text>
+          )}
+          {step === 'done' && result && (
+            <Text color="green">
+              ✔ prompt #{result.prompt.id} salvo
+              {!result.projectLinked && ' (sem projeto vinculado)'} — &quot;aleksandria run{' '}
+              {result.prompt.id}&quot; quando quiser executar.
+            </Text>
+          )}
+          {step === 'error' && <Text color="red">✖ {error}</Text>}
+        </>
+      )}
+
+      {step === 'cancelled' && <Text color="gray">cancelado.</Text>}
+    </Box>
+  );
 }
 
 export async function runDraft(nameArg: string | undefined, cwd: string): Promise<void> {
-  const credentials = getCredentials();
+  const credentials: Credentials = getCredentials();
   const projectDir = locateProjectDir(cwd, nameArg);
   const context = scanProject(projectDir);
 
-  const title = await askTitle(context);
-  const editorTemplate = buildEditorTemplate(context);
+  async function save(title: string, description: string): Promise<SaveResult> {
+    let projectId: number | null = null;
+    let projectLinked = false;
 
-  // Dá um tick pro React terminar de desmontar a tela do Ink (o cleanup do raw mode do stdin
-  // roda num useEffect assíncrono) antes de entregar o terminal pro editor.
-  await new Promise((resolve) => setImmediate(resolve));
-
-  console.log('→ escreve a descrição da feature no editor, salva e fecha pra continuar…');
-  const finalBody = editInEditor(editorTemplate);
-
-  let projectId: number | null = null;
-  if (context.remote) {
-    const resolved = await resolveProject(credentials, context.remote.owner, context.remote.repo);
-    if (resolved) {
-      projectId = resolved.id;
-      rememberProjectPath(resolved.id, projectDir);
-    } else {
-      console.log(
-        `⚠ "${context.remote.owner}/${context.remote.repo}" não está cadastrado na Aleksandria — salvando sem projeto vinculado.`,
-      );
+    if (context.remote) {
+      const resolved = await resolveProject(credentials, context.remote.owner, context.remote.repo);
+      if (resolved) {
+        projectId = resolved.id;
+        projectLinked = true;
+        rememberProjectPath(resolved.id, projectDir);
+      }
     }
+
+    const prompt = await createPrompt(credentials, {
+      project_id: projectId,
+      title,
+      body: description,
+      source: 'cli',
+      context_snapshot: {
+        remote: context.remote ? `${context.remote.owner}/${context.remote.repo}` : null,
+        packageDescription: context.packageDescription,
+        hadClaudeMd: Boolean(context.claudeMd),
+        hadReadme: Boolean(context.readme),
+      },
+    });
+
+    return { prompt, projectLinked };
   }
 
-  const prompt = await createPrompt(credentials, {
-    project_id: projectId,
-    title,
-    body: finalBody,
-    source: 'cli',
-    context_snapshot: {
-      remote: context.remote ? `${context.remote.owner}/${context.remote.repo}` : null,
-      hadClaudeMd: Boolean(context.claudeMd),
-      hadReadme: Boolean(context.readme),
-      recentCommits: context.recentCommits,
-    },
-  });
-
-  console.log(`✔ prompt #${prompt.id} salvo — "aleksandria run ${prompt.id}" quando quiser executar.`);
+  const { waitUntilExit } = render(<DraftFlow context={context} onSave={save} />);
+  await waitUntilExit();
 }

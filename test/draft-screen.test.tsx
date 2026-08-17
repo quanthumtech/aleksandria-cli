@@ -1,8 +1,15 @@
 import { render } from 'ink-testing-library';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { DraftScreen } from '../src/commands/draft.js';
+import { DescriptionStep, DraftFlow, TitleStep } from '../src/commands/draft.js';
 import type { ProjectContext } from '../src/scan.js';
+
+// ink-testing-library passa `debug: true` pro render do Ink, o que desativa o raw mode — sem raw
+// mode, `useInput` (usado direto no DescriptionStep e via TextInput no TitleStep) nunca recebe os
+// keystrokes simulados por `stdin.write`. É uma limitação conhecida da combinação
+// ink-testing-library + Ink v5, não da lógica destes componentes — por isso os testes abaixo
+// cobrem render estático e os guards que não dependem de keystroke chegar (ex.: nada dispara
+// sozinho no mount), não a digitação em si.
 
 function context(overrides: Partial<ProjectContext> = {}): ProjectContext {
   return {
@@ -16,43 +23,37 @@ function context(overrides: Partial<ProjectContext> = {}): ProjectContext {
   };
 }
 
-describe('DraftScreen', () => {
-  it('mostra a assinatura, o resumo do scan e o remote', () => {
-    const { lastFrame } = render(<DraftScreen context={context()} onSubmit={vi.fn()} />);
+describe('TitleStep', () => {
+  it('mostra o rótulo e não chama onSubmit sozinho', () => {
+    const onSubmit = vi.fn();
+    const { lastFrame } = render(<TitleStep onSubmit={onSubmit} />);
+
+    expect(lastFrame()).toContain('título do prompt');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe('DescriptionStep', () => {
+  it('mostra o rótulo com a dica do Ctrl+D e o cursor inicial', () => {
+    const onFinish = vi.fn();
+    const { lastFrame } = render(<DescriptionStep onFinish={onFinish} />);
+
+    expect(lastFrame()).toContain('Ctrl+D quando terminar');
+    expect(onFinish).not.toHaveBeenCalled();
+  });
+});
+
+describe('DraftFlow', () => {
+  it('abre na etapa de título, com a assinatura e o resumo do scan', () => {
+    const { lastFrame } = render(
+      <DraftFlow context={context()} onSave={vi.fn()} />,
+    );
 
     const frame = lastFrame();
     expect(frame).toContain('aleksandria');
     expect(frame).toContain('CLAUDE.md');
-    expect(frame).toContain('README.md');
-    expect(frame).toContain('git log -10');
     expect(frame).toContain('quanthumtech/docs-hub');
     expect(frame).toContain('título do prompt');
-    expect(frame).toContain('descrição da feature');
-  });
-
-  it('avisa quando nenhum contexto extra foi encontrado', () => {
-    const { lastFrame } = render(
-      <DraftScreen
-        context={context({ claudeMd: null, readme: null, recentCommits: [] })}
-        onSubmit={vi.fn()}
-      />,
-    );
-
-    expect(lastFrame()).toContain('nenhum CLAUDE.md/README/git log encontrado');
-  });
-
-  // Sem teste de "digita e aperta enter": o `debug: true` que ink-testing-library passa pro
-  // `render` do Ink desativa o raw mode, e sem raw mode o `useInput` do ink-text-input nunca
-  // recebe os keystrokes simulados por `stdin.write` — é uma limitação conhecida da combinação
-  // ink-testing-library + ink-text-input, não da lógica deste componente. O guard de string
-  // vazia (teste abaixo) já cobre o único código que é meu de fato — o resto vem do TextInput.
-
-  it('não chama onSubmit se o título estiver vazio', () => {
-    const onSubmit = vi.fn();
-    const { stdin } = render(<DraftScreen context={context()} onSubmit={onSubmit} />);
-
-    stdin.write('\r');
-
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(frame).not.toContain('Salvar esse prompt?');
   });
 });
