@@ -3,9 +3,13 @@ import type { ProjectContext } from './scan.js';
 /**
  * Monta o template que abre no $EDITOR: um espaço em branco sob "## Descrição da feature" pro
  * usuário escrever (pode ter várias linhas — por isso não é pedido no campo de texto do Ink, que
- * é de uma linha só) seguido do contexto escaneado do projeto, só de referência. Sem IA (decisão
- * da v1) — o título já foi pedido antes, à parte, e não entra aqui pra não duplicar o que já vai
- * no campo `title` do prompt.
+ * é de uma linha só) seguido de um contexto BEM enxuto do projeto. Sem IA (decisão da v1) — o
+ * título já foi pedido antes, à parte, e não entra aqui pra não duplicar o campo `title`.
+ *
+ * De propósito, NÃO inclui o conteúdo de CLAUDE.md/README aqui: quando `aleksandria run` executa
+ * o `claude` dentro da própria pasta do projeto, ele já lê esses arquivos sozinho — duplicá-los
+ * no corpo do prompt só infla o texto sem agregar nada pra execução (e piora ainda mais em
+ * projetos com CLAUDE.md grande). O que sobra é só o que o `claude` NÃO descobre sozinho.
  */
 export function buildEditorTemplate(context: ProjectContext): string {
   const sections: string[] = ['## Descrição da feature', '', '', '', '---', 'Contexto do projeto:'];
@@ -16,14 +20,6 @@ export function buildEditorTemplate(context: ProjectContext): string {
 
   if (context.packageDescription) {
     sections.push(context.packageDescription);
-  }
-
-  if (context.claudeMd) {
-    sections.push('', 'CLAUDE.md (trecho):', context.claudeMd.trim());
-  }
-
-  if (context.readme) {
-    sections.push('', 'README.md (trecho):', context.readme.trim());
   }
 
   if (context.recentCommits.length > 0) {

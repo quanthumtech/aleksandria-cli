@@ -15,20 +15,26 @@ function context(overrides: Partial<ProjectContext> = {}): ProjectContext {
 }
 
 describe('buildEditorTemplate', () => {
-  it('inclui o cabeçalho da descrição e o contexto disponível', () => {
+  it('inclui o cabeçalho da descrição e um contexto enxuto', () => {
     const template = buildEditorTemplate(context({
       remote: { owner: 'quanthumtech', repo: 'docs-hub' },
-      claudeMd: 'Use Sail pra tudo.',
-      readme: '# docs-hub',
       recentCommits: ['abc123 fix: algo', 'def456 feat: outro'],
     }));
 
     expect(template).toContain('## Descrição da feature');
     expect(template).toContain('quanthumtech/docs-hub');
-    expect(template).toContain('Use Sail pra tudo.');
-    expect(template).toContain('# docs-hub');
     expect(template).toContain('- abc123 fix: algo');
     expect(template).toContain('- def456 feat: outro');
+  });
+
+  it('não duplica CLAUDE.md/README no corpo — o claude já lê isso sozinho ao rodar no projeto', () => {
+    const template = buildEditorTemplate(context({
+      claudeMd: 'Use Sail pra tudo, sempre, em todo lugar.',
+      readme: '# docs-hub — biblioteca central de documentação',
+    }));
+
+    expect(template).not.toContain('Use Sail pra tudo');
+    expect(template).not.toContain('biblioteca central de documentação');
   });
 
   it('deixa espaço em branco pro usuário escrever, antes do contexto', () => {

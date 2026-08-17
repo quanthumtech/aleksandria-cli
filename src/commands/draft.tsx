@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Box, render, Text } from 'ink';
 import TextInput from 'ink-text-input';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPrompt, resolveProject } from '../api.js';
 import { getCredentials } from '../config.js';
 import { buildEditorTemplate } from '../draft-template.js';
@@ -93,6 +93,13 @@ function editInEditor(initialContent: string): string {
   const tmpFile = path.join(os.tmpdir(), `aleksandria-draft-${Date.now()}.md`);
   fs.writeFileSync(tmpFile, initialContent, 'utf-8');
 
+  // O <TextInput> do Ink desliga o raw mode do stdin dentro de um useEffect de cleanup, que o
+  // React só roda de forma assíncrona depois do unmount() — sem isso, o editor pode herdar o
+  // stdin ainda em raw mode e ler a tecla errada como comando assim que abre.
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(false);
+  }
+
   const result = spawnSync(editor, [tmpFile], { stdio: 'inherit' });
   if (result.error) {
     fs.rmSync(tmpFile, { force: true });
@@ -111,6 +118,10 @@ export async function runDraft(nameArg: string | undefined, cwd: string): Promis
 
   const title = await askTitle(context);
   const editorTemplate = buildEditorTemplate(context);
+
+  // Dá um tick pro React terminar de desmontar a tela do Ink (o cleanup do raw mode do stdin
+  // roda num useEffect assíncrono) antes de entregar o terminal pro editor.
+  await new Promise((resolve) => setImmediate(resolve));
 
   console.log('→ escreve a descrição da feature no editor, salva e fecha pra continuar…');
   const finalBody = editInEditor(editorTemplate);
