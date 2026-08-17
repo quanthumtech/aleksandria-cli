@@ -1,9 +1,12 @@
 /**
- * Monta o corpo do prompt combinando a descrição digitada com o contexto escaneado do projeto —
- * sem chamar nenhuma API de IA (decisão da v1): o usuário revisa/edita antes de salvar.
+ * Monta o template que abre no $EDITOR: um espaço em branco sob "## Descrição da feature" pro
+ * usuário escrever (pode ter várias linhas — por isso não é pedido no campo de texto do Ink, que
+ * é de uma linha só) seguido do contexto escaneado do projeto, só de referência. Sem IA (decisão
+ * da v1) — o título já foi pedido antes, à parte, e não entra aqui pra não duplicar o que já vai
+ * no campo `title` do prompt.
  */
-export function buildDraft(description, context) {
-    const sections = [description.trim(), '', '---', 'Contexto do projeto:'];
+export function buildEditorTemplate(context) {
+    const sections = ['## Descrição da feature', '', '', '', '---', 'Contexto do projeto:'];
     if (context.remote) {
         sections.push(`Repositório: ${context.remote.owner}/${context.remote.repo}`);
     }

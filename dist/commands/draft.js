@@ -8,7 +8,7 @@ import TextInput from 'ink-text-input';
 import { useState } from 'react';
 import { createPrompt, resolveProject } from '../api.js';
 import { getCredentials } from '../config.js';
-import { buildDraft } from '../draft-template.js';
+import { buildEditorTemplate } from '../draft-template.js';
 import { locateProjectDir } from '../project-locate.js';
 import { rememberProjectPath } from '../project-cache.js';
 import { scanProject } from '../scan.js';
@@ -22,17 +22,17 @@ function ScanSummary({ context }) {
 }
 export function DraftScreen({ context, onSubmit, }) {
     const [value, setValue] = useState('');
-    return (_jsxs(Box, { flexDirection: "column", children: [_jsx(ScanSummary, { context: context }), _jsx(Text, { color: "gray", children: "# descri\u00E7\u00E3o da feature" }), _jsxs(Box, { children: [_jsx(Text, { color: "magenta", children: '> ' }), _jsx(TextInput, { value: value, onChange: setValue, onSubmit: (submitted) => {
+    return (_jsxs(Box, { flexDirection: "column", children: [_jsx(ScanSummary, { context: context }), _jsx(Text, { color: "gray", children: "# t\u00EDtulo do prompt" }), _jsxs(Box, { children: [_jsx(Text, { color: "magenta", children: '> ' }), _jsx(TextInput, { value: value, onChange: setValue, onSubmit: (submitted) => {
                             if (submitted.trim()) {
                                 onSubmit(submitted.trim());
                             }
-                        } })] })] }));
+                        } })] }), _jsx(Text, { color: "gray", children: "a descri\u00E7\u00E3o da feature (pode ter v\u00E1rias linhas) \u00E9 escrita no editor, no pr\u00F3ximo passo." })] }));
 }
-function askDescription(context) {
+function askTitle(context) {
     return new Promise((resolve) => {
-        const { unmount } = render(_jsx(DraftScreen, { context: context, onSubmit: (description) => {
+        const { unmount } = render(_jsx(DraftScreen, { context: context, onSubmit: (title) => {
                 unmount();
-                resolve(description);
+                resolve(title);
             } }));
     });
 }
@@ -50,18 +50,14 @@ function editInEditor(initialContent) {
     fs.rmSync(tmpFile, { force: true });
     return edited;
 }
-function deriveTitle(description) {
-    const firstLine = description.split('\n')[0].trim();
-    return firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine;
-}
 export async function runDraft(nameArg, cwd) {
     const credentials = getCredentials();
     const projectDir = locateProjectDir(cwd, nameArg);
     const context = scanProject(projectDir);
-    const description = await askDescription(context);
-    const draftBody = buildDraft(description, context);
-    console.log('→ revisa/edita o draft no editor, salva e fecha pra continuar…');
-    const finalBody = editInEditor(draftBody);
+    const title = await askTitle(context);
+    const editorTemplate = buildEditorTemplate(context);
+    console.log('→ escreve a descrição da feature no editor, salva e fecha pra continuar…');
+    const finalBody = editInEditor(editorTemplate);
     let projectId = null;
     if (context.remote) {
         const resolved = await resolveProject(credentials, context.remote.owner, context.remote.repo);
@@ -75,7 +71,7 @@ export async function runDraft(nameArg, cwd) {
     }
     const prompt = await createPrompt(credentials, {
         project_id: projectId,
-        title: deriveTitle(description),
+        title,
         body: finalBody,
         source: 'cli',
         context_snapshot: {

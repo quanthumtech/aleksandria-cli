@@ -7,7 +7,7 @@ import TextInput from 'ink-text-input';
 import React, { useState } from 'react';
 import { createPrompt, resolveProject } from '../api.js';
 import { getCredentials } from '../config.js';
-import { buildDraft } from '../draft-template.js';
+import { buildEditorTemplate } from '../draft-template.js';
 import { locateProjectDir } from '../project-locate.js';
 import { rememberProjectPath } from '../project-cache.js';
 import { scanProject, type ProjectContext } from '../scan.js';
@@ -48,14 +48,14 @@ export function DraftScreen({
   onSubmit,
 }: {
   context: ProjectContext;
-  onSubmit: (description: string) => void;
+  onSubmit: (title: string) => void;
 }) {
   const [value, setValue] = useState('');
 
   return (
     <Box flexDirection="column">
       <ScanSummary context={context} />
-      <Text color="gray"># descrição da feature</Text>
+      <Text color="gray"># título do prompt</Text>
       <Box>
         <Text color="magenta">{'> '}</Text>
         <TextInput
@@ -68,18 +68,19 @@ export function DraftScreen({
           }}
         />
       </Box>
+      <Text color="gray">a descrição da feature (pode ter várias linhas) é escrita no editor, no próximo passo.</Text>
     </Box>
   );
 }
 
-function askDescription(context: ProjectContext): Promise<string> {
+function askTitle(context: ProjectContext): Promise<string> {
   return new Promise((resolve) => {
     const { unmount } = render(
       <DraftScreen
         context={context}
-        onSubmit={(description) => {
+        onSubmit={(title) => {
           unmount();
-          resolve(description);
+          resolve(title);
         }}
       />,
     );
@@ -103,21 +104,16 @@ function editInEditor(initialContent: string): string {
   return edited;
 }
 
-function deriveTitle(description: string): string {
-  const firstLine = description.split('\n')[0].trim();
-  return firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine;
-}
-
 export async function runDraft(nameArg: string | undefined, cwd: string): Promise<void> {
   const credentials = getCredentials();
   const projectDir = locateProjectDir(cwd, nameArg);
   const context = scanProject(projectDir);
 
-  const description = await askDescription(context);
-  const draftBody = buildDraft(description, context);
+  const title = await askTitle(context);
+  const editorTemplate = buildEditorTemplate(context);
 
-  console.log('→ revisa/edita o draft no editor, salva e fecha pra continuar…');
-  const finalBody = editInEditor(draftBody);
+  console.log('→ escreve a descrição da feature no editor, salva e fecha pra continuar…');
+  const finalBody = editInEditor(editorTemplate);
 
   let projectId: number | null = null;
   if (context.remote) {
@@ -134,7 +130,7 @@ export async function runDraft(nameArg: string | undefined, cwd: string): Promis
 
   const prompt = await createPrompt(credentials, {
     project_id: projectId,
-    title: deriveTitle(description),
+    title,
     body: finalBody,
     source: 'cli',
     context_snapshot: {

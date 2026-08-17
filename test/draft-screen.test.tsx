@@ -26,6 +26,7 @@ describe('DraftScreen', () => {
     expect(frame).toContain('README.md');
     expect(frame).toContain('git log -10');
     expect(frame).toContain('quanthumtech/docs-hub');
+    expect(frame).toContain('título do prompt');
     expect(frame).toContain('descrição da feature');
   });
 
@@ -46,7 +47,7 @@ describe('DraftScreen', () => {
   // ink-testing-library + ink-text-input, não da lógica deste componente. O guard de string
   // vazia (teste abaixo) já cobre o único código que é meu de fato — o resto vem do TextInput.
 
-  it('não chama onSubmit se a descrição estiver vazia', () => {
+  it('não chama onSubmit se o título estiver vazio', () => {
     const onSubmit = vi.fn();
     const { stdin } = render(<DraftScreen context={context()} onSubmit={onSubmit} />);
 
