@@ -43,7 +43,7 @@ function ScanSummary({ context }: { context: ProjectContext }) {
   );
 }
 
-function DraftScreen({
+export function DraftScreen({
   context,
   onSubmit,
 }: {
