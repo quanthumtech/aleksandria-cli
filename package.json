@@ -1,0 +1,31 @@
+{
+  "name": "aleksandria-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CLI da Aleksandria — escreve prompts com contexto real de projeto e dispara execução via Claude Code.",
+  "bin": {
+    "aleksandria": "./bin/aleksandria.js"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "ink": "^5.0.1",
+    "ink-text-input": "^6.0.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "ink-testing-library": "^4.0.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}
