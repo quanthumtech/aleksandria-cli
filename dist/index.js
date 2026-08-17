@@ -4,6 +4,7 @@ import { runConfigSet } from './commands/config.js';
 import { runDraft } from './commands/draft.js';
 import { runList } from './commands/list.js';
 import { runRun } from './commands/run.js';
+import { runUpdate } from './commands/update.js';
 const program = new Command();
 program.name('aleksandria').description('CLI da Aleksandria — prompts com contexto de projeto').version('0.1.0');
 async function guard(fn) {
@@ -35,6 +36,18 @@ program
     .option('--path <dir>', 'caminho local do projeto (se não estiver em cache)')
     .action(async (id, opts) => {
     await guard(() => runRun(parseInt(id, 10), opts));
+});
+program
+    .command('update')
+    .description('Atualiza o aleksandria-cli (git pull + rebuild em ~/.aleksandria-cli)')
+    .action(() => {
+    try {
+        runUpdate();
+    }
+    catch (err) {
+        console.error(`\n✖ ${err.message}`);
+        process.exitCode = 1;
+    }
 });
 const config = program.command('config').description('Configura URL e token da Aleksandria');
 config
