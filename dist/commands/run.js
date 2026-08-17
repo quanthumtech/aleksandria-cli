@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import path from 'node:path';
 import { AGENTS, findAgent } from '../agents.js';
 import { getPrompt, updatePrompt } from '../api.js';
 import { getCredentials, readConfig, writeConfig } from '../config.js';
@@ -32,12 +33,24 @@ export async function runRun(id, options) {
         rememberProjectPath(prompt.project_id, options.path);
     }
     const agent = await resolveAgent(options.agent);
+    const absolutePath = path.resolve(localPath);
     await updatePrompt(credentials, id, { status: 'running' });
     console.log(`→ cd ${localPath}`);
-    console.log(`→ ${agent.command} "${prompt.title}"   [running]`);
+    const displayArgs = agent.args(prompt.title);
+    const quotedDisplay = [
+        ...displayArgs.slice(0, -1),
+        `"${displayArgs[displayArgs.length - 1]}"`,
+    ].join(' ');
+    console.log(`→ ${agent.command} ${quotedDisplay}   [running]`);
     const startedAt = Date.now();
     const exitCode = await new Promise((resolve) => {
-        const child = spawn(agent.command, [prompt.body], { cwd: localPath, stdio: 'inherit' });
+        const child = spawn(agent.command, agent.args(prompt.body), {
+            cwd: absolutePath,
+            // Alguns CLIs (opencode/qaicli) resolvem caminho relativo contra $PWD em vez do cwd real
+            // do processo — sem isso, herdam o PWD do shell que chamou "aleksandria" e erram a pasta.
+            env: { ...process.env, PWD: absolutePath },
+            stdio: 'inherit',
+        });
         child.on('close', (code) => resolve(code ?? 1));
         child.on('error', () => resolve(1));
     });
